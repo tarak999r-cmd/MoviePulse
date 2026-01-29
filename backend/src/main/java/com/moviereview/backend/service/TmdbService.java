@@ -1,14 +1,22 @@
 package com.moviereview.backend.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.List;
 
 @Service
 public class TmdbService {
+
+    private static final Logger logger = LoggerFactory.getLogger(TmdbService.class);
 
     @Value("${tmdb.api.key}")
     private String apiKey;
@@ -22,20 +30,43 @@ public class TmdbService {
         this.restTemplate = new RestTemplate();
     }
 
+    private <T> T fetchTmdbData(@NonNull String url, @NonNull ParameterizedTypeReference<T> responseType,
+            String errorPrefix) {
+        try {
+            HttpMethod method = HttpMethod.GET;
+            HttpEntity<?> requestEntity = HttpEntity.EMPTY;
+            return restTemplate.exchange(
+                    url,
+                    method,
+                    requestEntity,
+                    responseType).getBody();
+        } catch (Exception e) {
+            logger.error("{}{}", errorPrefix, e.getMessage());
+            return null;
+        }
+    }
+
+    private Map<String, Object> fetchTmdbMap(String url, String errorPrefix) {
+        return fetchTmdbData(url, new ParameterizedTypeReference<Map<String, Object>>() {
+        }, errorPrefix);
+    }
+
     public List<Map<String, Object>> getTrendingMovies() {
         String url = UriComponentsBuilder.fromUriString(apiUrl + "/trending/movie/week")
                 .queryParam("api_key", apiKey)
                 .toUriString();
 
-        try {
-            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
-            if (response != null && response.containsKey("results")) {
-                return (List<Map<String, Object>>) response.get("results");
-            }
-        } catch (Exception e) {
-            System.err.println("Error fetching trending movies from TMDB: " + e.getMessage());
+        TmdbResultsResponse response = fetchTmdbData(
+                url,
+                new ParameterizedTypeReference<TmdbResultsResponse>() {
+                },
+                "Error fetching trending movies from TMDB: ");
+
+        if (response == null || response.getResults() == null) {
+            return List.of();
         }
-        return List.of();
+
+        return response.getResults();
     }
 
     public Map<String, Object> getMovie(String id) {
@@ -44,12 +75,7 @@ public class TmdbService {
                 .queryParam("append_to_response", "credits,release_dates")
                 .toUriString();
 
-        try {
-            return restTemplate.getForObject(url, Map.class);
-        } catch (Exception e) {
-            System.err.println("Error fetching movie details from TMDB: " + e.getMessage());
-            return null;
-        }
+        return fetchTmdbMap(url, "Error fetching movie details from TMDB: ");
     }
 
     public Map<String, Object> searchMovies(String query, int page) {
@@ -59,12 +85,7 @@ public class TmdbService {
                 .queryParam("page", page)
                 .toUriString();
 
-        try {
-            return restTemplate.getForObject(url, Map.class);
-        } catch (Exception e) {
-            System.err.println("Error searching movies from TMDB: " + e.getMessage());
-            return null;
-        }
+        return fetchTmdbMap(url, "Error searching movies from TMDB: ");
     }
 
     public Map<String, Object> searchPeople(String query, int page) {
@@ -74,11 +95,35 @@ public class TmdbService {
                 .queryParam("page", page)
                 .toUriString();
 
-        try {
-            return restTemplate.getForObject(url, Map.class);
-        } catch (Exception e) {
-            System.err.println("Error searching people from TMDB: " + e.getMessage());
-            return null;
+        return fetchTmdbMap(url, "Error searching people from TMDB: ");
+    }
+
+    public Map<String, Object> getPerson(String id) {
+        String url = UriComponentsBuilder.fromUriString(apiUrl + "/person/" + id)
+                .queryParam("api_key", apiKey)
+                .toUriString();
+
+        return fetchTmdbMap(url, "Error fetching person details from TMDB: ");
+    }
+
+    public Map<String, Object> getPersonMovieCredits(String id) {
+        String url = UriComponentsBuilder.fromUriString(apiUrl + "/person/" + id + "/movie_credits")
+                .queryParam("api_key", apiKey)
+                .toUriString();
+
+        return fetchTmdbMap(url, "Error fetching person credits from TMDB: ");
+    }
+
+    public static class TmdbResultsResponse {
+        private List<Map<String, Object>> results;
+
+        public List<Map<String, Object>> getResults() {
+            return results;
+        }
+
+        @SuppressWarnings("unused")
+        public void setResults(List<Map<String, Object>> results) {
+            this.results = results;
         }
     }
 }

@@ -61,4 +61,24 @@ public class MovieController {
             @RequestParam(defaultValue = "1") int page) {
         return ResponseEntity.ok(tmdbService.searchPeople(query, page));
     }
+
+    @GetMapping("/person/{id}")
+    public ResponseEntity<Map<String, Object>> getPerson(@PathVariable String id) {
+        Map<String, Object> person = tmdbService.getPerson(id);
+        if (person != null) {
+            return ResponseEntity.ok(person);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/person/{id}/movie_credits")
+    public ResponseEntity<Map<String, Object>> getPersonMovieCredits(@PathVariable String id) {
+        Map<String, Object> credits = tmdbService.getPersonMovieCredits(id);
+        if (credits != null) {
+            return ResponseEntity.ok(credits);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

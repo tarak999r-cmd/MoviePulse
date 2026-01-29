@@ -101,7 +101,7 @@ const MovieCredits = () => {
           {activeTab === 'CAST' && (
             <div className="credits-grid">
               {movie.credits?.cast?.map(person => (
-                <div key={person.id} className="credit-card">
+                <div key={person.id} className="credit-card" onClick={() => navigate(`/person/${person.id}`, { state: { department: 'Acting' } })} style={{cursor: 'pointer'}}>
                    <div className="credit-image-container">
                       {person.profile_path ? (
                         <img src={`${IMAGE_BASE_URL}${person.profile_path}`} alt={person.name} />
@@ -121,7 +121,7 @@ const MovieCredits = () => {
           {activeTab === 'CREW' && (
              <div className="credits-grid">
                 {sortedCrew?.map((person, index) => (
-                  <div key={`${person.id}-${index}`} className="credit-card">
+                  <div key={`${person.id}-${index}`} className="credit-card" onClick={() => navigate(`/person/${person.id}`, { state: { department: person.department } })} style={{cursor: 'pointer'}}>
                     <div className="credit-image-container">
                       {person.profile_path ? (
                         <img src={`${IMAGE_BASE_URL}${person.profile_path}`} alt={person.name} />

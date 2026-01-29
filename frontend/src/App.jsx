@@ -10,6 +10,7 @@ import UserProfile from './components/UserProfile'
 import SearchResults from './components/SearchResults'
 import MovieDetails from './components/MovieDetails'
 import MovieCredits from './components/MovieCredits'
+import PersonDetails from './components/PersonDetails'
 import OAuthCallback from './components/OAuthCallback'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
@@ -48,6 +49,7 @@ function AppContent() {
       <Route path="/user/:id" element={<UserProfile />} />
       <Route path="/movie/:id" element={<MovieDetails />} />
       <Route path="/movie/:id/credits" element={<MovieCredits />} />
+      <Route path="/person/:id" element={<PersonDetails />} />
       <Route path="/search" element={<SearchResults />} />
       <Route path="/oauth/callback" element={<OAuthCallback />} />
     </Routes>

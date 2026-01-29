@@ -404,11 +404,12 @@ const SearchResults = () => {
                                 castResults.map(person => (
                                     <div 
                                         key={person.id}
+                                        onClick={() => navigate(`/person/${person.id}`, { state: { department: person.known_for_department || 'Acting' } })}
                                         style={{ 
                                             backgroundColor: 'transparent', 
                                             borderRadius: '4px', 
                                             overflow: 'hidden',
-                                            cursor: 'default'
+                                            cursor: 'pointer'
                                         }}
                                     >
                                         <div style={{ 

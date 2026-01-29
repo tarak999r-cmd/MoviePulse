@@ -133,7 +133,7 @@ const MovieDetails = () => {
     backgroundAttachment: 'fixed',
   };
 
-  const director = movie.credits?.crew?.find(person => person.job === 'Director')?.name;
+  const directorObj = movie.credits?.crew?.find(person => person.job === 'Director');
   const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
   const getCrewPriority = (job) => {
     const jobLower = job.toLowerCase();
@@ -186,7 +186,7 @@ const MovieDetails = () => {
                 <span className="title-text">{movie.title}</span>
                 <span className="meta-group">
                   <span className="release-year-link">{releaseYear}</span>
-                  {director && <span className="director-wrapper">Directed by <span className="director-link">{director}</span></span>}
+                  {directorObj && <span className="director-wrapper">Directed by <span className="director-link" onClick={() => navigate(`/person/${directorObj.id}`, { state: { department: 'Directing' } })} style={{cursor: 'pointer'}}>{directorObj.name}</span></span>}
                 </span>
               </h1>
               
@@ -262,7 +262,7 @@ const MovieDetails = () => {
                 <>
                   <div className="cast-grid">
                     {movie.credits?.cast?.slice(0, 4).map(person => (
-                      <div key={person.id} className="cast-card">
+                      <div key={person.id} className="cast-card" onClick={() => navigate(`/person/${person.id}`, { state: { department: 'Acting' } })} style={{cursor: 'pointer'}}>
                          <div className="cast-image-container">
                             {person.profile_path ? (
                               <img src={`${IMAGE_BASE_URL}${person.profile_path}`} alt={person.name} />
@@ -292,7 +292,7 @@ const MovieDetails = () => {
                  <>
                    <div className="cast-grid">
                       {featuredCrew.slice(0, 4).map((person, index) => (
-                        <div key={`${person.id}-${index}`} className="cast-card">
+                        <div key={`${person.id}-${index}`} className="cast-card" onClick={() => navigate(`/person/${person.id}`, { state: { department: person.department } })} style={{cursor: 'pointer'}}>
                            <div className="cast-image-container">
                               {person.profile_path ? (
                                 <img src={`${IMAGE_BASE_URL}${person.profile_path}`} alt={person.name} />
