@@ -5,7 +5,7 @@ import './ReviewModal.css';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 
 const ReviewModal = (props) => {
-  if (!props.isOpen || !props.movie) return null;
+  if (!props.movie) return null;
   return <ReviewForm {...props} />;
 };
 

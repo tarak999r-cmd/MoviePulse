@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Outlet, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from './Navbar';
 import './Profile.css'; // Reusing Profile styles
@@ -150,6 +150,21 @@ const UserProfile = () => {
                     <span className="stat-label">Followers</span>
                 </div>
             </div>
+        </div>
+
+        <div className="profile-slim-nav" style={{ marginTop: '20px', borderBottom: '1px solid #333' }}>
+           <NavLink to="" end className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Profile</NavLink>
+           <NavLink to="activity" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Activity</NavLink>
+           <NavLink to="films" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Films</NavLink>
+           <NavLink to="diary" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Diary</NavLink>
+           <NavLink to="reviews" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Reviews</NavLink>
+           <NavLink to="watchlist" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Watchlist</NavLink>
+           <NavLink to="lists" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Lists</NavLink>
+           <NavLink to="likes" className={({ isActive }) => `profile-slim-nav-item ${isActive ? 'active' : ''}`}>Likes</NavLink>
+        </div>
+
+        <div className="profile-content-area" style={{ marginTop: '20px' }}>
+            <Outlet context={{ user: profileUser }} />
         </div>
       </div>
       </main>

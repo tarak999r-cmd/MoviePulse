@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ReviewCard from './ReviewCard';
 
 import Navbar from './Navbar';
 
@@ -10,9 +11,11 @@ const API_BASE_FALLBACK = API_BASE_URL || 'http://localhost:8080';
 const SearchResults = () => {
     const [searchParams] = useSearchParams();
     const query = searchParams.get('query');
+    const tag = searchParams.get('tag');
     const [movieResults, setMovieResults] = useState([]);
     const [userResults, setUserResults] = useState([]);
     const [castResults, setCastResults] = useState([]);
+    const [reviewResults, setReviewResults] = useState([]);
     const [castTotalPages, setCastTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('All');
@@ -24,24 +27,38 @@ const SearchResults = () => {
     useEffect(() => {
         setPage(1);
         setActiveFilter('All');
-    }, [query]);
+    }, [query, tag]);
 
     useEffect(() => {
         // Reset results when query changes
         setMovieResults([]);
         setUserResults([]);
         setCastResults([]);
-        // setActiveFilter('All'); // Don't reset filter on page change, but maybe on query change?
-        // Actually, if query changes, page resets to 1, and this effect runs.
+        setReviewResults([]);
         
         const fetchResults = async () => {
-            if (!query) return;
+            if (!query && !tag) return;
             setLoading(true);
             try {
-                const [movieRes, initialUserRes] = await Promise.all([
-                    fetch(`${API_BASE_FALLBACK}/api/movies/search/paginated?query=${encodeURIComponent(query)}&page=${page}`),
-                    fetch(`${API_BASE_FALLBACK}/api/users/search?query=${encodeURIComponent(query)}`),
-                ]);
+                if (tag) {
+                     const res = await fetch(`${API_BASE_FALLBACK}/api/reviews/search/tags?tag=${encodeURIComponent(tag)}`, {
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                     });
+                     if (res.ok) {
+                         const data = await res.json();
+                         // Enrich with like status? 
+                         // The backend endpoint returns List<Review>. 
+                         // It doesn't include isLiked boolean unless we process it.
+                         // But ReviewCard handles isLiked from the review object props.
+                         // For now let's just display them.
+                         setReviewResults(data);
+                         setActiveFilter('Reviews');
+                     }
+                } else if (query) {
+                    const [movieRes, initialUserRes] = await Promise.all([
+                        fetch(`${API_BASE_FALLBACK}/api/movies/search/paginated?query=${encodeURIComponent(query)}&page=${page}`),
+                        fetch(`${API_BASE_FALLBACK}/api/users/search?query=${encodeURIComponent(query)}`),
+                    ]);
 
                 if (movieRes.ok) {
                     const data = await movieRes.json();
@@ -129,6 +146,9 @@ const SearchResults = () => {
                     setCastResults([]);
                     setCastTotalPages(1);
                 }
+                } else {
+                    // Tag search handling finished above
+                }
             } catch (err) {
                 console.error("Search failed", err);
             } finally {
@@ -137,7 +157,7 @@ const SearchResults = () => {
         };
 
         fetchResults();
-    }, [query, token, page]);
+    }, [query, tag, token, page]);
 
     const handleUserClick = (userId) => {
         if (currentUser && String(currentUser.id) === String(userId)) {
@@ -158,6 +178,33 @@ const SearchResults = () => {
 
     const renderContent = () => {
         if (loading) return <div>Loading...</div>;
+
+        if (tag) {
+            return (
+                <div>
+                     <h3 style={{
+                        borderBottom: '1px solid #333',
+                        paddingBottom: '10px',
+                        marginBottom: '20px',
+                        fontSize: '0.9rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        color: '#999'
+                    }}>
+                        Reviews with tag "{tag}"
+                    </h3>
+                    <div className="reviews-list">
+                        {reviewResults.length > 0 ? (
+                            reviewResults.map(review => (
+                                <ReviewCard key={review.id} review={review} user={currentUser} />
+                            ))
+                        ) : (
+                            <div style={{ color: '#666', fontSize: '0.9rem' }}>No reviews found for this tag.</div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
 
         const showMovies = activeFilter === 'All' || activeFilter === 'Films';
         const showUsers = activeFilter === 'All' || activeFilter === 'Users';
@@ -523,6 +570,7 @@ const SearchResults = () => {
                 </div>
 
                 {/* Sidebar Filters */}
+                {!tag && (
                 <div style={{ width: '250px', flexShrink: 0 }}>
                     <h4 style={{ 
                         margin: '0 0 15px 0', 
@@ -572,6 +620,7 @@ const SearchResults = () => {
                         ))}
                     </div>
                 </div>
+                )}
             </div>
         </div>
     );

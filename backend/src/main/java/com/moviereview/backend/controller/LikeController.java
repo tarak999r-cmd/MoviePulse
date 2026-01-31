@@ -33,6 +33,11 @@ public class LikeController {
         return ResponseEntity.ok(likeRepository.findByUserIdOrderByCreatedAtDesc(user.getId()));
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Like>> getUserLikes(@PathVariable Long userId) {
+        return ResponseEntity.ok(likeRepository.findByUserIdOrderByCreatedAtDesc(userId));
+    }
+
     @GetMapping("/{movieId}/check")
     public ResponseEntity<Map<String, Boolean>> checkLikeStatus(@PathVariable String movieId, Authentication authentication) {
         String email = authentication.getName();

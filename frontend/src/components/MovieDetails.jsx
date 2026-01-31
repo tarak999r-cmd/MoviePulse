@@ -44,6 +44,10 @@ const MovieDetails = () => {
   const [friendActivity, setFriendActivity] = useState([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [userRating, setUserRating] = useState(0);
+  const [userReview, setUserReview] = useState(null);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [showLogOptions, setShowLogOptions] = useState(false);
+  const [modalInitialData, setModalInitialData] = useState({});
 
   useEffect(() => {
     localStorage.setItem('preferredCountries', JSON.stringify(selectedCountries));
@@ -91,8 +95,10 @@ const MovieDetails = () => {
           .then(data => {
               if (data.hasReview) {
                   setUserRating(data.rating);
+                  setUserReview(data.review);
               } else {
                   setUserRating(0);
+                  setUserReview(null);
               }
           })
           .catch(err => console.error(err));
@@ -257,16 +263,68 @@ const MovieDetails = () => {
     })
     .catch(err => console.error('Error saving review:', err));
 
-    if (reviewData.isWatched && !isWatched) {
-        setIsWatched(true);
-        setInWatchlist(false); // Remove from watchlist if watched
+    // Handle Watched Status - Persist to backend and update local state
+    if (reviewData.isWatched) {
+        if (!isWatched) {
+            setIsWatched(true);
+            setInWatchlist(false); // Remove from watchlist if watched
+            
+            // Persist to backend
+            fetch(`${API_BASE_URL}/api/watched`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    movieId: movie.id,
+                    title: movie.title,
+                    posterPath: movie.poster_path,
+                    voteAverage: movie.vote_average,
+                    releaseDate: movie.release_date
+                })
+            }).catch(e => console.error("Failed to persist watched status", e));
+        }
+    } else {
+        // User explicitly unchecked "Watched"
+        if (isWatched) {
+            setIsWatched(false);
+            // Persist removal
+            fetch(`${API_BASE_URL}/api/watched/${movie.id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            }).catch(e => console.error("Failed to remove watched status", e));
+        }
     }
+
     if (reviewData.isLiked !== isLiked) {
         setIsLiked(reviewData.isLiked);
     }
     if (reviewData.rating !== undefined) {
         setUserRating(parseFloat(reviewData.rating));
     }
+    
+    // Optimistic update for userReview
+    setUserReview({
+        ...reviewData,
+        createdAt: new Date().toISOString(),
+        id: 'temp-' + Date.now() 
+    });
+
+    // Re-fetch review status to ensure data consistency
+    fetch(`${API_BASE_URL}/api/reviews/movie/${movie.id}/check`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.hasReview) {
+            setUserRating(data.rating);
+            setUserReview(data.review);
+        }
+    });
+
     setIsReviewModalOpen(false);
   };
 
@@ -540,36 +598,96 @@ const MovieDetails = () => {
                                 {/* Background Star (Empty) */}
                                 <Star 
                                     size={20} 
-                                    color={i <= Math.ceil(userRating) ? "#40bcf4" : "#678"} // Change border color if part of rating
+                                    color={i <= Math.ceil(userRating) ? "#40bcf4" : "#678"} 
                                     strokeWidth={1} 
                                     className="star-icon"
                                 />
                                 
                                 {/* Filled Star Overlay */}
-                                {(i <= userRating || (i === Math.ceil(userRating) && userRating % 1 !== 0)) && (
-                                    <div style={{ 
-                                        position: 'absolute', 
-                                        top: 0, 
-                                        left: 0, 
-                                        width: i <= userRating ? '100%' : `${(userRating % 1) * 100}%`, 
-                                        overflow: 'hidden' 
-                                    }}>
-                                        <Star 
-                                            size={20} 
-                                            fill="#40bcf4" 
-                                            color="#40bcf4"
-                                            strokeWidth={1}
-                                        />
-                                    </div>
-                                )}
+                                <div style={{ 
+                                    position: 'absolute', 
+                                    top: 0, 
+                                    left: 0, 
+                                    width: i <= Math.floor(userRating) ? '100%' : (i === Math.ceil(userRating) && userRating % 1 !== 0) ? '50%' : '0%', 
+                                    overflow: 'hidden' 
+                                }}>
+                                    <Star 
+                                        size={20} 
+                                        fill="#40bcf4" 
+                                        color="#40bcf4"
+                                        strokeWidth={1}
+                                    />
+                                </div>
                             </div>
                           ))}
                        </div>
                     </div>
                     <div className="action-divider"></div>
                     <div className="menu-options">
-                       <div className="menu-item">Show your activity</div>
-                       <div className="menu-item" onClick={() => setIsReviewModalOpen(true)}>Review or log...</div>
+                       <div className="menu-item" onClick={() => navigate(`/movie/${id}/activity`)}>Show your activity</div>
+                       
+                       {userReview ? (
+                           <div style={{ position: 'relative' }}>
+                               <div 
+                                   className="menu-item" 
+                                   onClick={(e) => {
+                                       e.stopPropagation();
+                                       setShowLogOptions(!showLogOptions);
+                                   }}
+                               >
+                                   Edit your review...
+                               </div>
+                               {showLogOptions && (
+                                   <div 
+                                     style={{ 
+                                         position: 'absolute', 
+                                         top: '100%', 
+                                         left: 0, 
+                                         width: '100%', 
+                                         backgroundColor: '#334155', 
+                                         zIndex: 20,
+                                         boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                         borderRadius: '0 0 4px 4px'
+                                     }}
+                                   >
+                                       <div 
+                                           className="menu-item"
+                                           onClick={() => {
+                                               setModalInitialData({
+                                                   ...userReview,
+                                                   isLiked: isLiked,
+                                                   isWatched: isWatched
+                                               });
+                                               setIsReviewModalOpen(true);
+                                               setShowLogOptions(false);
+                                           }}
+                                           style={{ fontSize: '0.85rem', paddingLeft: '25px', textAlign: 'left' }}
+                                       >
+                                           Edit existing review
+                                       </div>
+                                       <div 
+                                           className="menu-item"
+                                           onClick={() => {
+                                               setModalInitialData({});
+                                               setIsReviewModalOpen(true);
+                                               setShowLogOptions(false);
+                                           }}
+                                           style={{ fontSize: '0.85rem', paddingLeft: '25px', textAlign: 'left' }}
+                                       >
+                                           Log another review
+                                       </div>
+                                   </div>
+                               )}
+                           </div>
+                       ) : (
+                           <div className="menu-item" onClick={() => {
+                               setModalInitialData({});
+                               setIsReviewModalOpen(true);
+                           }}>
+                               Review or log...
+                           </div>
+                       )}
+                       
                        <div className="menu-item">Add to lists...</div>
                     </div>
                     <div className="action-divider"></div>
@@ -920,8 +1038,11 @@ const MovieDetails = () => {
                    <div key={friend.userId} className="friend-avatar" style={{
                        backgroundImage: `url(${friend.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.name)}&background=random`})`,
                        backgroundSize: 'cover',
-                       position: 'relative'
-                   }}>
+                       position: 'relative',
+                       cursor: 'pointer'
+                   }}
+                   onClick={() => navigate(`/movie/${movie.id}/activity?userId=${friend.userId}`)}
+                   >
                       <div style={{
                           position: 'absolute',
                           bottom: '-4px',
@@ -952,18 +1073,118 @@ const MovieDetails = () => {
 
         </div>
       </div>
-      <ReviewModal 
-        isOpen={isReviewModalOpen}
-        onClose={() => setIsReviewModalOpen(false)}
-        movie={movie}
-        onSave={handleSaveReview}
-        initialData={{
-            isWatched: isWatched,
-            isLiked: isLiked,
-            watchedDate: new Date().toISOString().split('T')[0]
-        }}
-        onLikeChange={(newStatus) => setIsLiked(newStatus)}
-      />
+      {isReviewModalOpen && (
+        <ReviewModal
+          movie={movie}
+          onClose={() => setIsReviewModalOpen(false)}
+          onSave={handleSaveReview}
+          initialData={modalInitialData}
+          onLikeChange={(newLikeState) => {
+              setIsLiked(newLikeState);
+          }}
+        />
+      )}
+
+      {isActivityModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsActivityModalOpen(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
+                <button className="modal-close" onClick={() => setIsActivityModalOpen(false)}>
+                    <X size={24} color="#99aabb" />
+                </button>
+                <h2 style={{ color: '#fff', marginBottom: '20px', fontSize: '1.5rem', fontWeight: '600' }}>Your Activity</h2>
+                
+                {userReview ? (
+                    <div className="activity-review-container">
+                         {/* We can reuse ReviewCard if it's exported, or just render similar structure */}
+                         {/* Assuming ReviewCard is not easily importable or we want specific style */}
+                         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                             <div style={{ flex: 1 }}>
+                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                     <span style={{ color: '#99aabb', fontSize: '0.9rem' }}>You reviewed this on</span>
+                                     <span style={{ color: '#fff', fontWeight: '500' }}>
+                                         {userReview.watchedDate ? new Date(userReview.watchedDate).toLocaleDateString() : 'Unknown date'}
+                                     </span>
+                                 </div>
+                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '12px' }}>
+                                     {[1,2,3,4,5].map(star => (
+                                         <Star 
+                                             key={star} 
+                                             size={16} 
+                                             fill={star <= userReview.rating ? "#00e054" : "none"} 
+                                             color={star <= userReview.rating ? "#00e054" : "#445566"} 
+                                             strokeWidth={0}
+                                         />
+                                     ))}
+                                     {userReview.isLiked && <Heart size={16} fill="#ff5c5c" color="#ff5c5c" style={{ marginLeft: '8px' }} />}
+                                 </div>
+                                 {userReview.content && (
+                                     <p style={{ color: '#ddeeff', lineHeight: '1.6', fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
+                                         {userReview.content}
+                                     </p>
+                                 )}
+                                 {userReview.tags && userReview.tags.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                                        {userReview.tags.map(tag => (
+                                            <span key={tag} style={{ 
+                                                backgroundColor: '#2c3440', 
+                                                color: '#99aabb', 
+                                                padding: '4px 8px', 
+                                                borderRadius: '4px',
+                                                fontSize: '0.85rem'
+                                            }}>
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                 )}
+                             </div>
+                         </div>
+                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                             <button 
+                                onClick={() => {
+                                    setIsActivityModalOpen(false);
+                                    setIsReviewModalOpen(true);
+                                }}
+                                style={{
+                                    backgroundColor: '#40bcf4',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                             >
+                                Edit Review
+                             </button>
+                         </div>
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', padding: '40px 0', color: '#99aabb' }}>
+                        <p style={{ marginBottom: '20px' }}>You haven't reviewed this movie yet.</p>
+                        <button 
+                            onClick={() => {
+                                setIsActivityModalOpen(false);
+                                setIsReviewModalOpen(true);
+                            }}
+                            style={{
+                                backgroundColor: '#00e054',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '1rem'
+                            }}
+                        >
+                            Log this movie
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
     </div>
   );
 };

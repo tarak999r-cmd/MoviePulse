@@ -1,10 +1,12 @@
 package com.moviereview.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "reviews")
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -138,5 +140,17 @@ public class Review {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    @Override
+    public String toString() {
+        return "Review{" +
+                "id=" + id +
+                ", movieId='" + movieId + '\'' +
+                ", movieTitle='" + movieTitle + '\'' +
+                ", rating=" + rating +
+                ", content='" + content + '\'' +
+                ", watchedDate=" + watchedDate +
+                '}';
     }
 }

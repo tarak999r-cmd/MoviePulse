@@ -9,6 +9,7 @@ import HomePage from './components/HomePage'
 import UserProfile from './components/UserProfile'
 import SearchResults from './components/SearchResults'
 import MovieDetails from './components/MovieDetails'
+import UserMovieActivity from './components/UserMovieActivity'
 import MovieCredits from './components/MovieCredits'
 import PersonDetails from './components/PersonDetails'
 import OAuthCallback from './components/OAuthCallback'
@@ -47,8 +48,18 @@ function AppContent() {
         <Route path="likes" element={<ProfileLikes />} />
       </Route>
       <Route path="/home" element={<HomePage onNavigate={handleNavigate} user={user} />} />
-      <Route path="/user/:id" element={<UserProfile />} />
+      <Route path="/user/:id" element={<UserProfile />}>
+        <Route index element={<ProfileOverview />} />
+        <Route path="activity" element={<ProfileActivity />} />
+        <Route path="films" element={<ProfileFilms />} />
+        <Route path="diary" element={<ProfileDiary />} />
+        <Route path="reviews" element={<ProfileReviews />} />
+        <Route path="watchlist" element={<ProfileWatchlist />} />
+        <Route path="lists" element={<ProfileLists />} />
+        <Route path="likes" element={<ProfileLikes />} />
+      </Route>
       <Route path="/movie/:id" element={<MovieDetails />} />
+      <Route path="/movie/:id/activity" element={<UserMovieActivity />} />
       <Route path="/movie/:id/credits" element={<MovieCredits />} />
       <Route path="/person/:id" element={<PersonDetails />} />
       <Route path="/search" element={<SearchResults />} />

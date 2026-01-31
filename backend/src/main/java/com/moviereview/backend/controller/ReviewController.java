@@ -2,8 +2,10 @@ package com.moviereview.backend.controller;
 
 import com.moviereview.backend.model.Like;
 import com.moviereview.backend.model.Review;
+import com.moviereview.backend.model.ReviewLike;
 import com.moviereview.backend.model.User;
 import com.moviereview.backend.repository.LikeRepository;
+import com.moviereview.backend.repository.ReviewLikeRepository;
 import com.moviereview.backend.repository.ReviewRepository;
 import com.moviereview.backend.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
@@ -12,8 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -22,12 +26,46 @@ public class ReviewController {
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final LikeRepository likeRepository;
+    private final ReviewLikeRepository reviewLikeRepository;
 
     public ReviewController(ReviewRepository reviewRepository, UserRepository userRepository,
-            LikeRepository likeRepository) {
+            LikeRepository likeRepository, ReviewLikeRepository reviewLikeRepository) {
         this.reviewRepository = reviewRepository;
         this.userRepository = userRepository;
         this.likeRepository = likeRepository;
+        this.reviewLikeRepository = reviewLikeRepository;
+    }
+
+    @PostMapping("/{reviewId}/like")
+    @Transactional
+    public ResponseEntity<?> likeReview(@PathVariable Long reviewId, Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Review not found"));
+
+        if (reviewLikeRepository.existsByUserIdAndReviewId(user.getId(), reviewId)) {
+            return ResponseEntity.badRequest().body("Review already liked");
+        }
+
+        ReviewLike reviewLike = new ReviewLike(user, review);
+        reviewLikeRepository.save(reviewLike);
+
+        return ResponseEntity.ok(Map.of("message", "Review liked"));
+    }
+
+    @DeleteMapping("/{reviewId}/like")
+    @Transactional
+    public ResponseEntity<?> unlikeReview(@PathVariable Long reviewId, Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        reviewLikeRepository.deleteByUserIdAndReviewId(user.getId(), reviewId);
+
+        return ResponseEntity.ok(Map.of("message", "Review unliked"));
     }
 
     @PostMapping
@@ -108,27 +146,137 @@ public class ReviewController {
         return ResponseEntity.ok(savedReview);
     }
 
+    @GetMapping("/friends")
+    public ResponseEntity<List<Map<String, Object>>> getFriendReviews(Authentication authentication) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Long> followingIds = user.getFollowing().stream()
+                .map(User::getId)
+                .toList();
+
+        if (followingIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<Review> reviews = reviewRepository.findByUserIdInOrderByCreatedAtDesc(followingIds);
+
+        List<Map<String, Object>> result = reviews.stream().map(review -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", review.getId());
+            map.put("movieId", review.getMovieId());
+            map.put("movieTitle", review.getMovieTitle());
+            map.put("movieYear", review.getMovieYear());
+            map.put("moviePosterUrl", review.getMoviePosterUrl());
+            map.put("rating", review.getRating());
+            map.put("content", review.getContent());
+            map.put("rewatch", review.isRewatch());
+            map.put("containsSpoiler", review.isContainsSpoiler());
+            map.put("createdAt", review.getCreatedAt());
+            map.put("user", review.getUser());
+            map.put("tags", review.getTags());
+
+            boolean isLiked = likeRepository.existsByUserIdAndMovieId(review.getUser().getId(), review.getMovieId());
+            map.put("isLiked", isLiked);
+
+            boolean isReviewLiked = reviewLikeRepository.existsByUserIdAndReviewId(user.getId(), review.getId());
+            map.put("isReviewLiked", isReviewLiked);
+
+            return map;
+        }).toList();
+
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Review>> getUserReviews(@PathVariable Long userId) {
         return ResponseEntity.ok(reviewRepository.findByUserId(userId));
     }
 
     @GetMapping("/movie/{movieId}/check")
+    @Transactional
     public ResponseEntity<?> checkReviewStatus(@PathVariable String movieId, Authentication authentication) {
         String email = authentication.getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Review> reviews = reviewRepository.findAllByUserIdAndMovieId(user.getId(), movieId);
+        List<Review> reviews = reviewRepository.findAllByUserIdAndMovieId(user.getId(), movieId.trim());
+        Optional<Like> likeOpt = likeRepository.findByUserIdAndMovieId(user.getId(), movieId.trim());
+
+        Map<String, Object> response = new HashMap<>();
+
+        if (likeOpt.isPresent()) {
+            System.out.println("Like found for movie " + movieId);
+            response.put("isLiked", true);
+            response.put("likeDate", likeOpt.get().getCreatedAt().toString());
+        } else {
+            System.out.println("No like found for movie " + movieId);
+            response.put("isLiked", false);
+        }
 
         if (!reviews.isEmpty()) {
             Review review = reviews.get(0);
-            return ResponseEntity.ok(Map.of(
-                    "hasReview", true,
-                    "rating", review.getRating(),
-                    "reviewId", review.getId()));
+            System.out.println("Review found for movie " + movieId + ": " + review.getId());
+
+            response.put("hasReview", true);
+            response.put("rating", review.getRating());
+            response.put("reviewId", review.getId());
+            response.put("review", review);
+
+            return ResponseEntity.ok(response);
         } else {
-            return ResponseEntity.ok(Map.of("hasReview", false));
+            response.put("hasReview", false);
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    @GetMapping("/search/tags")
+    public ResponseEntity<List<Review>> searchReviewsByTag(@RequestParam String tag) {
+        return ResponseEntity.ok(reviewRepository.findByTagsContaining(tag));
+    }
+
+    @GetMapping("/user/{userId}/movie/{movieId}")
+    public ResponseEntity<?> getUserReviewForMovie(@PathVariable Long userId, @PathVariable String movieId,
+            Authentication authentication) {
+        List<Review> reviews = reviewRepository.findAllByUserIdAndMovieId(userId, movieId.trim());
+        Optional<Like> likeOpt = likeRepository.findByUserIdAndMovieId(userId, movieId.trim());
+
+        Map<String, Object> response = new HashMap<>();
+
+        if (likeOpt.isPresent()) {
+            response.put("isLiked", true);
+            response.put("likeDate", likeOpt.get().getCreatedAt().toString());
+        } else {
+            response.put("isLiked", false);
+        }
+
+        if (!reviews.isEmpty()) {
+            Review review = reviews.get(0);
+            response.put("hasReview", true);
+            response.put("rating", review.getRating());
+            response.put("reviewId", review.getId());
+            response.put("review", review);
+
+            // Check if requesting user liked this review
+            if (authentication != null) {
+                String email = authentication.getName();
+                Optional<User> currentUserOpt = userRepository.findByEmail(email);
+                if (currentUserOpt.isPresent()) {
+                    boolean isReviewLiked = reviewLikeRepository.existsByUserIdAndReviewId(currentUserOpt.get().getId(),
+                            review.getId());
+                    response.put("isReviewLiked", isReviewLiked);
+                } else {
+                    response.put("isReviewLiked", false);
+                }
+            } else {
+                response.put("isReviewLiked", false);
+            }
+
+            return ResponseEntity.ok(response);
+        } else {
+            response.put("hasReview", false);
+            return ResponseEntity.ok(response);
         }
     }
 }

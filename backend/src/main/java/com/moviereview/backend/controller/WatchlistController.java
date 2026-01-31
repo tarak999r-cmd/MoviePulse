@@ -33,6 +33,11 @@ public class WatchlistController {
         return ResponseEntity.ok(watchlistRepository.findByUserIdOrderByCreatedAtDesc(user.getId()));
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Watchlist>> getUserWatchlist(@PathVariable Long userId) {
+        return ResponseEntity.ok(watchlistRepository.findByUserIdOrderByCreatedAtDesc(userId));
+    }
+
     @GetMapping("/{movieId}/check")
     public ResponseEntity<Map<String, Boolean>> checkWatchlistStatus(@PathVariable String movieId, Authentication authentication) {
         String email = authentication.getName();

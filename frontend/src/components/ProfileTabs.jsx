@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import ReviewCard from './ReviewCard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -30,58 +30,67 @@ const MovieGrid = ({ movies, emptyMessage }) => {
 };
 
 export const ProfileOverview = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+  const isOwnProfile = !profileUser || (authUser && String(profileUser.id) === String(authUser.id));
+  
+  const navigate = useNavigate();
   const [favMovies, setFavMovies] = useState([]);
   const [recentMovies, setRecentMovies] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Mock reviews data including a spoiler review
-  const mockReviews = [
-    {
-      id: 1,
-      movieTitle: "Dune: Part Two",
-      movieYear: "2024",
-      moviePosterPath: "/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-      rating: 5,
-      content: "This movie is an absolute masterpiece. The visuals, the sound design, the acting - everything is perfect. A true cinematic experience.",
-      containsSpoiler: false,
-      likesCount: 24,
-      isLiked: true,
-      createdAt: "2024-03-01T12:00:00"
-    },
-    {
-      id: 2,
-      movieTitle: "Fight Club",
-      movieYear: "1999",
-      moviePosterPath: "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
-      rating: 4.5,
-      content: "The ending completely blew my mind! When it turned out that the narrator and Tyler Durden were the same person all along, I was in shock. This recontextualizes the entire movie.",
-      containsSpoiler: true,
-      likesCount: 156,
-      isLiked: false,
-      createdAt: "2024-02-28T10:30:00"
-    }
-  ];
 
   useEffect(() => {
     if (user) {
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+      
+      const fetchProfileLikes = isOwnProfile 
+          ? fetch(`${API_BASE_URL}/api/likes`, { headers }) 
+          : fetch(`${API_BASE_URL}/api/likes/user/${user.id}`, { headers });
+          
+      const fetchProfileWatched = isOwnProfile
+          ? fetch(`${API_BASE_URL}/api/watched`, { headers })
+          : fetch(`${API_BASE_URL}/api/watched/user/${user.id}`, { headers });
+          
+      const fetchReviews = fetch(`${API_BASE_URL}/api/reviews/user/${user.id}`, { headers });
+      
+      const fetchMyLikes = (!isOwnProfile && authUser)
+          ? fetch(`${API_BASE_URL}/api/likes`, { headers })
+          : Promise.resolve(null);
+
       Promise.all([
-        fetch(`${API_BASE_URL}/api/likes`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.ok ? res.json() : []),
-        fetch(`${API_BASE_URL}/api/watched`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        }).then(res => res.ok ? res.json() : [])
-      ]).then(([likesData, watchedData]) => {
+        fetchProfileLikes.then(res => res.ok ? res.json() : []),
+        fetchProfileWatched.then(res => res.ok ? res.json() : []),
+        fetchReviews.then(res => res.ok ? res.json() : []),
+        fetchMyLikes.then(res => res ? (res.ok ? res.json() : []) : null)
+      ]).then(([likesData, watchedData, reviewsData, myLikesData]) => {
         setFavMovies(likesData.slice(0, 4));
         setRecentMovies(watchedData.slice(0, 4));
+        
+        // Use myLikesData if available (viewing other profile), otherwise use likesData (own profile)
+        const myLikes = myLikesData || likesData;
+        const likedMovieIds = new Set(myLikes.map(l => l.movieId));
+        
+        // Sort reviews by date descending and add isLiked status
+        const sortedReviews = reviewsData
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .map(review => ({
+            ...review,
+            isLiked: likedMovieIds.has(review.movieId),
+            // We currently don't have review likes count in the backend, default to 0 or hide
+            likesCount: 0 
+          }));
+          
+        setReviews(sortedReviews);
+        
         setLoading(false);
       }).catch(err => {
         console.error(err);
         setLoading(false);
       });
     }
-  }, [user]);
+  }, [user, authUser, profileUser]);
 
   if (!user) return null;
   if (loading) return <div className="tab-content">Loading...</div>;
@@ -89,29 +98,70 @@ export const ProfileOverview = () => {
   return (
     <div className="tab-content">
       <div style={{ marginBottom: '10px' }}>
-        <div className="profile-content-title" style={{ marginBottom: '15px' }}>FAVORITE MOVIES</div>
+        <div className="profile-content-title">FAVORITE MOVIES</div>
         <MovieGrid movies={favMovies} emptyMessage="No favorite movies yet." />
       </div>
 
       <div style={{ marginBottom: '10px' }}>
-        <div className="profile-content-title" style={{ marginBottom: '15px' }}>RECENT ACTIVITY</div>
+        <div className="profile-content-title">RECENT ACTIVITY</div>
         <MovieGrid movies={recentMovies} emptyMessage="No recent activity." />
       </div>
 
       <div>
-        <div className="profile-content-title" style={{ marginBottom: '15px' }}>RECENT REVIEWS</div>
-        <div className="reviews-list">
-          {mockReviews.map(review => (
-            <ReviewCard key={review.id} review={review} user={user} />
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <div className="profile-content-title" style={{ marginBottom: 0 }}>RECENT REVIEWS</div>
+            <button 
+                onClick={() => navigate(isOwnProfile ? '/profile/reviews' : `/user/${user.id}/reviews`)} // Assuming updated routes
+                style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#00e054',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                }}
+            >
+                More
+            </button>
         </div>
+        
+        {reviews.length > 0 ? (
+          <>
+             {/* Recent Reviews Subsection */}
+             <div style={{ marginBottom: '20px' }}>
+                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Recent</div>
+                 <div className="reviews-list">
+                    {reviews.slice(0, 2).map(review => (
+                      <ReviewCard key={review.id} review={review} reviewAuthor={user} />
+                    ))}
+                 </div>
+             </div>
+
+             {/* Popular Reviews Subsection */}
+             <div>
+                 <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Popular</div>
+                 <div className="reviews-list">
+                    {[...reviews].sort((a, b) => b.likesCount - a.likesCount).slice(0, 2).map(review => (
+                      <ReviewCard key={`pop-${review.id}`} review={review} reviewAuthor={user} />
+                    ))}
+                 </div>
+             </div>
+          </>
+        ) : (
+          <p style={{ color: '#666', fontSize: '0.9rem' }}>No reviews yet.</p>
+        )}
       </div>
     </div>
   );
 };
 
 export const ProfileActivity = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+  
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -142,7 +192,7 @@ export const ProfileActivity = () => {
       {reviews.length > 0 ? (
         <div className="reviews-list">
           {reviews.map(review => (
-            <ReviewCard key={review.id} review={review} user={user} />
+            <ReviewCard key={review.id} review={review} reviewAuthor={user} />
           ))}
         </div>
       ) : (
@@ -153,7 +203,10 @@ export const ProfileActivity = () => {
 };
 
 export const ProfileFilms = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+  
   const navigate = useNavigate();
   const [watchedMovies, setWatchedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,8 +214,10 @@ export const ProfileFilms = () => {
 
   useEffect(() => {
     if (user) {
-      // Fetch watched films directly without setting loading true synchronously
-      fetch(`${API_BASE_URL}/api/watched`, {
+      const isOwnProfile = !profileUser || (authUser && String(profileUser.id) === String(authUser.id));
+      const endpoint = isOwnProfile ? `${API_BASE_URL}/api/watched` : `${API_BASE_URL}/api/watched/user/${user.id}`;
+      
+      fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -184,7 +239,7 @@ export const ProfileFilms = () => {
         setLoading(false);
       });
     }
-  }, [user]);
+  }, [user, authUser, profileUser]);
 
   if (loading) {
     return (
@@ -237,15 +292,81 @@ export const ProfileDiary = () => (
   </div>
 );
 
-export const ProfileReviews = () => (
-  <div className="tab-content">
-    <div className="profile-content-title">You have written 0 reviews</div>
-    <p>Reviews you have written will appear here.</p>
-  </div>
-);
+export const ProfileReviews = () => {
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      const isOwnProfile = !profileUser || (authUser && String(profileUser.id) === String(authUser.id));
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+
+      const fetchReviews = fetch(`${API_BASE_URL}/api/reviews/user/${user.id}`, { headers });
+      
+      const fetchMyLikes = (!isOwnProfile && authUser)
+          ? fetch(`${API_BASE_URL}/api/likes`, { headers })
+          : isOwnProfile 
+            ? fetch(`${API_BASE_URL}/api/likes`, { headers })
+            : Promise.resolve(null);
+
+      Promise.all([
+        fetchReviews.then(res => res.ok ? res.json() : []),
+        fetchMyLikes.then(res => res ? (res.ok ? res.json() : []) : [])
+      ]).then(([reviewsData, likesData]) => {
+        // Create a set of liked movie IDs for efficient lookup
+        const likedMovieIds = new Set(likesData.map(l => l.movieId));
+        
+        // Sort reviews by date descending and add isLiked status
+        const sortedReviews = reviewsData
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .map(review => ({
+            ...review,
+            isLiked: likedMovieIds.has(review.movieId),
+            likesCount: review.likesCount || 0 
+          }));
+          
+        setReviews(sortedReviews);
+        setLoading(false);
+      }).catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+    }
+  }, [user, authUser, profileUser]);
+
+  if (!user) return null;
+  if (loading) return <div className="tab-content">Loading...</div>;
+
+  if (reviews.length === 0) {
+    return (
+      <div className="tab-content">
+        <div className="profile-content-title">You have written 0 reviews</div>
+        <p>Reviews you have written will appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tab-content">
+      <div className="profile-content-title">You have written {reviews.length} reviews</div>
+      <div className="reviews-list">
+        {reviews.map(review => (
+          <ReviewCard key={review.id} review={review} />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export const ProfileWatchlist = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+  
   const navigate = useNavigate();
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -253,8 +374,11 @@ export const ProfileWatchlist = () => {
 
   useEffect(() => {
     if (user) {
+      const isOwnProfile = !profileUser || (authUser && String(profileUser.id) === String(authUser.id));
+      const endpoint = isOwnProfile ? `${API_BASE_URL}/api/watchlist` : `${API_BASE_URL}/api/watchlist/user/${user.id}`;
+
       // Fetch watchlist directly without setting loading true synchronously
-      fetch(`${API_BASE_URL}/api/watchlist`, {
+      fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -276,7 +400,7 @@ export const ProfileWatchlist = () => {
         setLoading(false);
       });
     }
-  }, [user]);
+  }, [user, authUser, profileUser]);
 
   if (loading) {
     return (
@@ -337,7 +461,10 @@ export const ProfileLists = () => (
 );
 
 export const ProfileLikes = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user: profileUser } = useOutletContext() || {};
+  const user = profileUser || authUser;
+  
   const navigate = useNavigate();
   const [likes, setLikes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -345,8 +472,11 @@ export const ProfileLikes = () => {
 
   useEffect(() => {
     if (user) {
+      const isOwnProfile = !profileUser || (authUser && String(profileUser.id) === String(authUser.id));
+      const endpoint = isOwnProfile ? `${API_BASE_URL}/api/likes` : `${API_BASE_URL}/api/likes/user/${user.id}`;
+
       // Fetch likes directly without setting loading true synchronously
-      fetch(`${API_BASE_URL}/api/likes`, {
+      fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -368,7 +498,7 @@ export const ProfileLikes = () => {
         setLoading(false);
       });
     }
-  }, [user]);
+  }, [user, authUser, profileUser]);
 
   if (loading) {
     return (

@@ -36,6 +36,11 @@ public class WatchedController {
         return ResponseEntity.ok(watchedRepository.findByUserIdOrderByCreatedAtDesc(user.getId()));
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Watched>> getUserWatched(@PathVariable Long userId) {
+        return ResponseEntity.ok(watchedRepository.findByUserIdOrderByCreatedAtDesc(userId));
+    }
+
     @GetMapping("/{movieId}/check")
     public ResponseEntity<Map<String, Boolean>> checkWatchedStatus(@PathVariable String movieId,
             Authentication authentication) {
