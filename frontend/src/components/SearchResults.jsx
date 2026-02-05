@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import ReviewCard from './ReviewCard';
-
 import Navbar from './Navbar';
+import ReviewCard from './ReviewCard';
+import MoviePoster from './MoviePoster';
+import { useAuth } from '../context/AuthContext';
+import './SearchResults.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_FALLBACK = API_BASE_URL || 'http://localhost:8080';
@@ -55,12 +56,15 @@ const SearchResults = () => {
                          setActiveFilter('Reviews');
                      }
                 } else if (query) {
-                    const [movieRes, initialUserRes] = await Promise.all([
+                    const [movieResult, userResult] = await Promise.allSettled([
                         fetch(`${API_BASE_FALLBACK}/api/movies/search/paginated?query=${encodeURIComponent(query)}&page=${page}`),
                         fetch(`${API_BASE_FALLBACK}/api/users/search?query=${encodeURIComponent(query)}`),
                     ]);
 
-                if (movieRes.ok) {
+                    const movieRes = movieResult.status === 'fulfilled' ? movieResult.value : null;
+                    const initialUserRes = userResult.status === 'fulfilled' ? userResult.value : null;
+
+                if (movieRes && movieRes.ok) {
                     const data = await movieRes.json();
                     const results = (data.results || []).map(m => ({
                                 id: m.id,
@@ -105,12 +109,12 @@ const SearchResults = () => {
                 // Users: handle 401 by retrying with Authorization if token exists
                 try {
                     let userRes = initialUserRes;
-                    if (userRes.status === 401 && token) {
+                    if (userRes && userRes.status === 401 && token) {
                         userRes = await fetch(`${API_BASE_FALLBACK}/api/users/search?query=${encodeURIComponent(query)}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
                     }
-                    if (userRes.ok) {
+                    if (userRes && userRes.ok) {
                         const data = await userRes.json();
                         setUserResults(data);
                     } else {
@@ -256,43 +260,18 @@ const SearchResults = () => {
                                         style={{ 
                                             backgroundColor: 'transparent', 
                                             borderRadius: '4px', 
-                                            overflow: 'hidden',
+                                            overflow: 'visible',
                                             cursor: 'pointer'
                                         }}
                                     >
-                                        {movie.posterUrl ? (
-                                            <img 
-                                                src={movie.posterUrl} 
-                                                alt={movie.title}  
-                                                style={{ 
-                                                    width: '100%', 
-                                                    height: '270px', 
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px',
-                                                    border: '1px solid #333'
-                                                }}
-                                            />
-                                        ) : (
-                                            <div
-                                                style={{
-                                                    width: '100%',
-                                                    height: '270px',
-                                                    borderRadius: '4px',
-                                                    border: '1px solid #333',
-                                                    background: 'linear-gradient(135deg, #1f2937, #0f172a)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: '#94a3b8',
-                                                    fontSize: '0.95rem',
-                                                    textAlign: 'center',
-                                                    padding: '8px'
-                                                }}
-                                                title={movie.title}
-                                            >
-                                                🎬 {movie.title}
-                                            </div>
-                                        )}
+                                        <MoviePoster 
+                                            movie={{
+                                                ...movie,
+                                                poster_path: movie.posterUrl ? null : movie.poster_path,
+                                                posterUrl: movie.posterUrl
+                                            }}
+                                            showTitleTooltip={true}
+                                        />
                                         <div style={{ padding: '10px 0' }}>
                                             <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: '#fff' }}>{movie.title}</h3>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>

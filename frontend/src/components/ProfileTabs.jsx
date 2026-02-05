@@ -2,22 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import ReviewCard from './ReviewCard';
+import MoviePoster from './MoviePoster';
+import { Heart, Clock, Star, Film, Grid, List as ListIcon, User, UserPlus, UserMinus, BarChart2 } from 'lucide-react';
+import './ProfileTabs.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w200';
+const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 
 const MovieGrid = ({ movies, emptyMessage }) => {
-  const navigate = useNavigate();
   return (
     <div className="overview-section" style={{ marginBottom: '30px' }}>
       {movies.length > 0 ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px' }}>
           {movies.map(item => (
-            <div key={item.id} onClick={() => navigate(`/movie/${item.movieId}`)} style={{ cursor: 'pointer' }}>
-              <img 
-                src={item.posterPath ? `${IMAGE_BASE_URL}${item.posterPath}` : 'https://via.placeholder.com/150x225'} 
-                alt={item.movieTitle}
-                style={{ width: '100%', borderRadius: '8px', aspectRatio: '2/3', objectFit: 'cover' }}
+            <div key={item.id}>
+              <MoviePoster 
+                movie={{
+                    id: item.movieId || item.id,
+                    title: item.movieTitle || item.title,
+                    poster_path: item.posterPath || item.poster_path
+                }}
+                showTitleTooltip={true}
               />
             </div>
           ))}
@@ -64,22 +69,19 @@ export const ProfileOverview = () => {
         fetchProfileWatched.then(res => res.ok ? res.json() : []),
         fetchReviews.then(res => res.ok ? res.json() : []),
         fetchMyLikes.then(res => res ? (res.ok ? res.json() : []) : null)
-      ]).then(([likesData, watchedData, reviewsData, myLikesData]) => {
+      ]).then(([likesData, watchedData, reviewsData]) => {
         setFavMovies(likesData.slice(0, 4));
         setRecentMovies(watchedData.slice(0, 4));
-        
-        // Use myLikesData if available (viewing other profile), otherwise use likesData (own profile)
-        const myLikes = myLikesData || likesData;
-        const likedMovieIds = new Set(myLikes.map(l => l.movieId));
         
         // Sort reviews by date descending and add isLiked status
         const sortedReviews = reviewsData
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
           .map(review => ({
             ...review,
-            isLiked: likedMovieIds.has(review.movieId),
-            // We currently don't have review likes count in the backend, default to 0 or hide
-            likesCount: 0 
+            // Map backend 'isReviewLiked' to 'isLiked' for ReviewCard (which expects 'isLiked' to be review like status)
+            // Backend 'isLiked' (movie like) is preserved as 'movieLiked' if needed, or we can just ignore it for ReviewCard
+            isLiked: review.isReviewLiked || false, 
+            likesCount: review.likesCount || 0 // Ensure we use the count from backend
           }));
           
         setReviews(sortedReviews);
@@ -173,7 +175,13 @@ export const ProfileActivity = () => {
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         // Sort by created date desc
-        const sorted = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const sorted = data
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .map(review => ({
+                ...review,
+                isLiked: review.isReviewLiked || false, // Map for ReviewCard
+                likesCount: review.likesCount || 0
+            }));
         setReviews(sorted);
         setLoading(false);
       })
@@ -207,7 +215,6 @@ export const ProfileFilms = () => {
   const { user: profileUser } = useOutletContext() || {};
   const user = profileUser || authUser;
   
-  const navigate = useNavigate();
   const [watchedMovies, setWatchedMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -272,11 +279,14 @@ export const ProfileFilms = () => {
       <div className="profile-content-title">You have watched {watchedMovies.length} films</div>
       <div className="watchlist-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px' }}>
         {watchedMovies.map(item => (
-          <div key={item.id} className="watchlist-item" onClick={() => navigate(`/movie/${item.movieId}`)} style={{ cursor: 'pointer' }}>
-            <img 
-              src={item.posterPath ? `${IMAGE_BASE_URL}${item.posterPath}` : 'https://via.placeholder.com/150x225'} 
-              alt={item.movieTitle}
-              style={{ width: '100%', borderRadius: '8px' }}
+          <div key={item.id} className="watchlist-item">
+            <MoviePoster 
+                movie={{
+                    id: item.movieId,
+                    title: item.movieTitle,
+                    poster_path: item.posterPath
+                }}
+                showTitleTooltip={true}
             />
           </div>
         ))}
@@ -316,17 +326,16 @@ export const ProfileReviews = () => {
       Promise.all([
         fetchReviews.then(res => res.ok ? res.json() : []),
         fetchMyLikes.then(res => res ? (res.ok ? res.json() : []) : [])
-      ]).then(([reviewsData, likesData]) => {
-        // Create a set of liked movie IDs for efficient lookup
-        const likedMovieIds = new Set(likesData.map(l => l.movieId));
+      ]).then(([reviewsData]) => {
         
         // Sort reviews by date descending and add isLiked status
         const sortedReviews = reviewsData
           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
           .map(review => ({
             ...review,
-            isLiked: likedMovieIds.has(review.movieId),
-            likesCount: review.likesCount || 0 
+            // Map backend 'isReviewLiked' to 'isLiked' for ReviewCard
+            isLiked: review.isReviewLiked || false,
+            likesCount: review.likesCount || 0 // Use backend provided count
           }));
           
         setReviews(sortedReviews);

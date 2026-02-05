@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Navbar from './Navbar';
+import MoviePoster from './MoviePoster';
 import './PersonDetails.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -175,42 +176,28 @@ const PersonDetails = () => {
                                 <div 
                                     key={`${movie.id}-${movie.job || 'cast'}`} 
                                     className="movie-card"
-                                    onClick={() => navigate(`/movie/${movie.id}`)}
                                 >
-                                    <div className="movie-poster">
-                                        {movie.poster_path ? (
-                                            <img 
-                                                src={`https://image.tmdb.org/t/p/w200${movie.poster_path}`} 
-                                                alt={movie.title} 
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                    e.target.nextSibling.style.display = 'flex';
-                                                }}
-                                            />
-                                        ) : null}
-                                        <div 
-                                            className="no-poster-fallback"
-                                            style={{
-                                                display: movie.poster_path ? 'none' : 'flex',
-                                                width: '100%',
-                                                height: '100%',
-                                                backgroundColor: '#1f2937',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexDirection: 'column',
-                                                padding: '10px',
-                                                textAlign: 'center',
-                                                color: '#64748b'
-                                            }}
-                                        >
-                                            <span style={{ fontSize: '2rem', marginBottom: '8px' }}>🎬</span>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: '500' }}>{movie.title}</span>
-                                        </div>
-                                        <div className="movie-rating">
+                                    <div className="movie-poster" style={{ position: 'relative' }}>
+                                        <MoviePoster 
+                                            movie={movie}
+                                            showTitleTooltip={true}
+                                        />
+                                        <div className="movie-rating" style={{ 
+                                            position: 'absolute', 
+                                            top: '4px', 
+                                            right: '4px', 
+                                            zIndex: 10,
+                                            background: 'rgba(0,0,0,0.7)',
+                                            color: '#fff',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                        }}>
                                             {movie.vote_average ? movie.vote_average.toFixed(1) : 'NR'}
                                         </div>
                                     </div>
-                                    <div className="movie-info">
+                                    <div className="movie-info" onClick={() => navigate(`/movie/${movie.id}`)} style={{ cursor: 'pointer' }}>
                                         <div className="movie-title">{movie.title}</div>
                                         <div className="movie-year">
                                             {movie.release_date ? new Date(movie.release_date).getFullYear() : ''}

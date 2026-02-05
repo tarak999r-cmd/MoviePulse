@@ -1,0 +1,30 @@
+/* ProfileTabs.css */
+.tab-content {
+  padding: 20px;
+}
+
+.profile-content-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 15px;
+}
+
+.overview-section {
+  margin-bottom: 30px;
+}
+
+.watchlist-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.watchlist-item {
+  transition: transform 0.2s;
+}
+
+.watchlist-item:hover {
+  transform: scale(1.02);
+}

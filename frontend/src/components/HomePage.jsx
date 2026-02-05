@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Navbar from './Navbar';
 import { useAuth } from '../context/AuthContext';
-import { Star, Heart, MessageSquare, RefreshCw, AlignLeft, Tag, ThumbsUp } from 'lucide-react';
+import { Star, Heart, MessageSquare, RefreshCw, AlignLeft, ThumbsUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import MoviePoster from './MoviePoster';
 import './LandingPage.css';
 
 const API_BASE_URL = 'http://localhost:8080';
@@ -31,30 +32,6 @@ const HomePage = () => {
         }
     }, [user]);
 
-    const handleLikeReview = async (e, reviewId, isLiked) => {
-        e.stopPropagation();
-        try {
-            const method = isLiked ? 'DELETE' : 'POST';
-            const res = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/like`, {
-                method: method,
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            
-            if (res.ok) {
-                setReviews(prev => prev.map(r => {
-                    if (r.id === reviewId) {
-                        return { ...r, isReviewLiked: !isLiked };
-                    }
-                    return r;
-                }));
-            } else {
-                console.error("Failed to like/unlike review");
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -77,43 +54,31 @@ const HomePage = () => {
                     {loading ? (
                         <div style={{ color: '#99aabb' }}>Loading activity...</div>
                     ) : reviews.length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '20px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
                             {reviews.map(review => (
                                 <div key={review.id} style={{ width: '100%' }}>
                                     {/* Poster Card */}
-                                    <div 
-                                        style={{ 
-                                            position: 'relative', 
-                                            aspectRatio: '2/3', 
-                                            borderRadius: '4px', 
-                                            overflow: 'hidden',
-                                            marginBottom: '8px',
-                                            cursor: 'pointer',
-                                            border: '1px solid #2c3440',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
-                                        }}
-                                        onClick={() => navigate(`/movie/${review.movieId}/activity?userId=${review.user.id}&tab=REVIEWS`)}
-                                        title={review.movieTitle}
-                                    >
-                                        <img 
-                                            src={review.moviePosterUrl ? `${IMAGE_BASE_URL}${review.moviePosterUrl}` : 'https://via.placeholder.com/150x225'} 
-                                            alt={review.movieTitle}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <MoviePoster 
+                                            movie={{
+                                                id: review.movieId,
+                                                title: review.movieTitle,
+                                                poster_path: review.moviePosterUrl,
+                                                posterUrl: review.moviePosterUrl
+                                            }}
+                                            review={null} // Explicitly null so the poster reflects the VIEWER'S relationship with the movie, not the reviewer's
+                                            showTitleTooltip={true}
+                                            onClick={() => navigate(`/movie/${review.movieId}/activity?userId=${review.user.id}&tab=REVIEWS`)}
                                         />
                                         
-                                        {/* User Overlay Bar */}
+                                        {/* User Info Bar (Always visible below poster in this view) */}
                                         <div style={{
-                                            position: 'absolute',
-                                            bottom: 0,
-                                            left: 0,
-                                            right: 0,
-                                            padding: '8px',
-                                            background: 'rgba(20, 24, 28, 0.8)',
-                                            backdropFilter: 'blur(2px)',
+                                            padding: '8px 4px',
+                                            background: 'rgba(20, 24, 28, 0.4)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '8px',
-                                            borderTop: '1px solid rgba(255,255,255,0.1)'
+                                            borderTop: '1px solid rgba(255,255,255,0.05)'
                                         }}>
                                             <img 
                                                 src={review.user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(review.user?.name || 'User')}&background=random`} 
@@ -135,13 +100,13 @@ const HomePage = () => {
 
                                     {/* Meta Row */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '20px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                                             {/* Stars */}
-                                            <div style={{ position: 'relative', display: 'inline-block', width: '60px', height: '12px' }}>
+                                            <div style={{ position: 'relative', display: 'inline-block', width: '50px', height: '10px' }}>
                                                 {/* Background Stars (Grey) */}
                                                 <div style={{ position: 'absolute', top: 0, left: 0, display: 'flex' }}>
                                                     {[1, 2, 3, 4, 5].map((star) => (
-                                                        <Star key={`bg-${star}`} size={12} fill="#2c3440" color="#2c3440" strokeWidth={0} />
+                                                        <Star key={`bg-${star}`} size={10} fill="#2c3440" color="#2c3440" strokeWidth={0} />
                                                     ))}
                                                 </div>
                                                 {/* Foreground Stars (Green) */}
@@ -155,28 +120,28 @@ const HomePage = () => {
                                                     whiteSpace: 'nowrap'
                                                 }}>
                                                     {[1, 2, 3, 4, 5].map((star) => (
-                                                        <Star key={`fg-${star}`} size={12} fill="#00e054" color="#00e054" strokeWidth={0} />
+                                                        <Star key={`fg-${star}`} size={10} fill="#00e054" color="#00e054" strokeWidth={0} />
                                                     ))}
                                                 </div>
                                             </div>
                                             
+                                            {/* Rewatch Icon */}
+                                            {review.rewatch && (
+                                                <RefreshCw size={10} color="#00e054" />
+                                            )}
+                                            
                                             {/* Like Icon */}
                                             {review.isLiked && (
-                                                <Heart size={12} fill="#ff5c5c" color="#ff5c5c" style={{ marginLeft: '2px' }} />
+                                                <Heart size={12} fill="#ff5c5c" color="#ff5c5c" />
                                             )}
                                             
                                             {/* Review Text Icon */}
                                             {review.content && (
-                                                <AlignLeft size={12} color="#89a" style={{ marginLeft: '2px' }} />
-                                            )}
-                                            
-                                            {/* Rewatch Icon */}
-                                            {review.rewatch && (
-                                                <RefreshCw size={10} color="#00e054" style={{ marginLeft: '2px' }} />
+                                                <AlignLeft size={12} color="#89a" />
                                             )}
                                         </div>
                                         
-                                        <span style={{ fontSize: '0.75rem', color: '#667788' }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#667788', whiteSpace: 'nowrap' }}>
                                             {formatDate(review.createdAt)}
                                         </span>
                                     </div>

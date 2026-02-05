@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Apple, Smartphone, Eye, Heart, MessageSquare, Star, Calendar, List } from 'lucide-react';
 import "./LandingPage.css";
 import Navbar from './Navbar';
+import MoviePoster from './MoviePoster';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/original';
 
 const FALLBACK_MOVIES = [
@@ -18,17 +17,10 @@ const FALLBACK_MOVIES = [
 ];
 
 const LandingPage = ({ onNavigate }) => {
-  const navigate = useNavigate();
   const [trendingMovies, setTrendingMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [heroBackdrop, setHeroBackdrop] = useState('');
   const [heroMovie, setHeroMovie] = useState(null);
-
-  const getPosterUrl = (path) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    return `${IMAGE_BASE_URL}${path}`;
-  };
 
   useEffect(() => {
     const fetchTrendingMovies = async () => {
@@ -135,20 +127,11 @@ const LandingPage = ({ onNavigate }) => {
                 <div className="loading-state">Loading trending picks…</div>
               ) : trendingMovies.length ? (
                 trendingMovies.map((movie) => (
-                  <div 
-                    key={movie.id} 
-                    className="poster-card"
-                    onClick={() => navigate(`/movie/${movie.id}`)}
-                    style={movie.poster_path ? { 
-                      backgroundImage: `url(${getPosterUrl(movie.poster_path)})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center'
-                    } : { backgroundColor: movie.color || '#333' }}
-                    title={movie.title}
-                  >
-                    <div className="poster-content">
-                      <span className="poster-title">{movie.title}</span>
-                    </div>
+                  <div key={movie.id} style={{ width: '150px', height: '225px' }}>
+                    <MoviePoster 
+                        movie={movie}
+                        showTitleTooltip={true}
+                    />
                   </div>
                 ))
               ) : (

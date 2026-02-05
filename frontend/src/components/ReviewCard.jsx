@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { Star, Heart, RefreshCw, Tag } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Star, Heart, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './ReviewCard.css';
 
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w200';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const ReviewCard = ({ review, reviewAuthor }) => {
   const [showSpoiler, setShowSpoiler] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [isLikedState, setIsLikedState] = useState(review?.isLiked || false);
+  const [likesCountState, setLikesCountState] = useState(review?.likesCount || 0);
+
+  useEffect(() => {
+    if (review) {
+      setIsLikedState(!!review.isLiked);
+      setLikesCountState(review.likesCount || 0);
+    }
+  }, [review?.isLiked, review?.likesCount, review]);
 
   if (!review) return null;
 
@@ -20,14 +33,48 @@ const ReviewCard = ({ review, reviewAuthor }) => {
     rating,
     content,
     containsSpoiler,
-    likesCount,
-    isLiked,
+    likesCount = 0,
+    isLiked = false,
     createdAt,
     watchedDate,
     rewatch,
-    isRewatch,
-    tags
+    isRewatch
   } = review;
+
+  const handleLike = async (e) => {
+    e.stopPropagation();
+    if (!user) {
+        navigate('/signin');
+        return;
+    }
+
+    // Optimistic update
+    const previousIsLiked = isLikedState;
+    const previousLikesCount = likesCountState;
+
+    setIsLikedState(!previousIsLiked);
+    setLikesCountState(prev => previousIsLiked ? Math.max(0, prev - 1) : prev + 1);
+
+    try {
+        const url = `${API_BASE_URL}/api/reviews/${review.id}/${previousIsLiked ? 'unlike' : 'like'}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (!res.ok) {
+            // Revert if failed
+            setIsLikedState(previousIsLiked);
+            setLikesCountState(previousLikesCount);
+        }
+    } catch (err) {
+        console.error("Error toggling like:", err);
+        setIsLikedState(previousIsLiked);
+        setLikesCountState(previousLikesCount);
+    }
+  };
 
   const wasRewatched = rewatch || isRewatch;
   const displayDate = watchedDate || createdAt;
@@ -98,25 +145,6 @@ const ReviewCard = ({ review, reviewAuthor }) => {
              </div>
              <span className="review-date">Watched {formattedDate}</span>
            </div>
-           
-           {tags && tags.length > 0 && (
-               <div className="review-tags" style={{ display: 'flex', alignItems: 'center', marginTop: '4px', gap: '6px' }}>
-                    <Tag size={12} color="#556677" />
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {tags.map((tag, idx) => (
-                            <span 
-                                key={idx} 
-                                style={{ fontSize: '0.75rem', color: '#678', cursor: 'pointer' }}
-                                onClick={() => navigate(`/search?tag=${encodeURIComponent(tag)}`)}
-                                onMouseOver={(e) => e.target.style.color = '#00e054'}
-                                onMouseOut={(e) => e.target.style.color = '#678'}
-                            >
-                                {tag}
-                            </span>
-                        ))}
-                    </div>
-               </div>
-           )}
         </div>
 
         <div className="review-body">
@@ -135,9 +163,21 @@ const ReviewCard = ({ review, reviewAuthor }) => {
         </div>
 
         <div className="review-card-footer">
-            <div className="review-likes-container" style={{ display: 'flex', alignItems: 'center', marginTop: 'auto', color: '#99aabb', fontSize: '0.8rem' }}>
-                <Heart size={14} fill={isLiked ? "#ff5c5c" : "#99aabb"} color={isLiked ? "#ff5c5c" : "#99aabb"} style={{ marginRight: '5px' }} />
-                <span>{likesCount || 0} likes</span>
+            <div 
+                className="review-likes-container" 
+                onClick={handleLike}
+                style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    marginTop: 'auto', 
+                    color: '#99aabb', 
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                }}
+            >
+                <Heart size={14} fill={isLikedState ? "#FF8000" : "#99aabb"} color={isLikedState ? "#FF8000" : "#99aabb"} style={{ marginRight: '5px' }} />
+                <span>{likesCountState} likes</span>
             </div>
         </div>
       </div>

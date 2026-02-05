@@ -39,33 +39,43 @@ public class ReviewController {
     @PostMapping("/{reviewId}/like")
     @Transactional
     public ResponseEntity<?> likeReview(@PathVariable Long reviewId, Authentication authentication) {
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            String email = authentication.getName();
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new RuntimeException("Review not found"));
+            Review review = reviewRepository.findById(reviewId)
+                    .orElseThrow(() -> new RuntimeException("Review not found"));
 
-        if (reviewLikeRepository.existsByUserIdAndReviewId(user.getId(), reviewId)) {
-            return ResponseEntity.badRequest().body("Review already liked");
+            if (reviewLikeRepository.existsByUserIdAndReviewId(user.getId(), reviewId)) {
+                return ResponseEntity.badRequest().body("Review already liked");
+            }
+
+            ReviewLike reviewLike = new ReviewLike(user, review);
+            reviewLikeRepository.save(reviewLike);
+
+            return ResponseEntity.ok(Map.of("message", "Review liked"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
-
-        ReviewLike reviewLike = new ReviewLike(user, review);
-        reviewLikeRepository.save(reviewLike);
-
-        return ResponseEntity.ok(Map.of("message", "Review liked"));
     }
 
     @DeleteMapping("/{reviewId}/like")
     @Transactional
     public ResponseEntity<?> unlikeReview(@PathVariable Long reviewId, Authentication authentication) {
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            String email = authentication.getName();
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        reviewLikeRepository.deleteByUserIdAndReviewId(user.getId(), reviewId);
+            reviewLikeRepository.deleteByUserIdAndReviewId(user.getId(), reviewId);
 
-        return ResponseEntity.ok(Map.of("message", "Review unliked"));
+            return ResponseEntity.ok(Map.of("message", "Review unliked"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping
@@ -190,8 +200,51 @@ public class ReviewController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Review>> getUserReviews(@PathVariable Long userId) {
-        return ResponseEntity.ok(reviewRepository.findByUserId(userId));
+    public ResponseEntity<List<Map<String, Object>>> getUserReviews(@PathVariable Long userId, Authentication authentication) {
+        List<Review> reviews = reviewRepository.findByUserId(userId);
+        User currentUser = null;
+        if (authentication != null) {
+            String email = authentication.getName();
+            currentUser = userRepository.findByEmail(email).orElse(null);
+        }
+
+        User finalCurrentUser = currentUser;
+        List<Map<String, Object>> result = reviews.stream().map(review -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", review.getId());
+            map.put("movieId", review.getMovieId());
+            map.put("movieTitle", review.getMovieTitle());
+            map.put("movieYear", review.getMovieYear());
+            map.put("moviePosterUrl", review.getMoviePosterUrl());
+            map.put("rating", review.getRating());
+            map.put("content", review.getContent());
+            map.put("rewatch", review.isRewatch());
+            map.put("containsSpoiler", review.isContainsSpoiler());
+            map.put("watchedDate", review.getWatchedDate());
+            map.put("createdAt", review.getCreatedAt());
+            map.put("user", review.getUser());
+            map.put("tags", review.getTags());
+
+            // Check if MOVIE is liked (legacy field isLiked usually meant movie like in some contexts, 
+            // but in ReviewCard it often means Review Like. 
+            // In getFriendReviews, isLiked = movie like, isReviewLiked = review like.
+            // Let's keep consistency with getFriendReviews).
+            boolean isLiked = likeRepository.existsByUserIdAndMovieId(review.getUser().getId(), review.getMovieId());
+            map.put("isLiked", isLiked); // This is "did the reviewer like the movie?"
+
+            boolean isReviewLiked = false;
+            if (finalCurrentUser != null) {
+                isReviewLiked = reviewLikeRepository.existsByUserIdAndReviewId(finalCurrentUser.getId(), review.getId());
+            }
+            map.put("isReviewLiked", isReviewLiked);
+
+            long likesCount = reviewLikeRepository.countByReviewId(review.getId());
+            map.put("likesCount", likesCount);
+
+            return map;
+        }).toList();
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/movie/{movieId}/check")
@@ -223,6 +276,12 @@ public class ReviewController {
             response.put("rating", review.getRating());
             response.put("reviewId", review.getId());
             response.put("review", review);
+
+            boolean isReviewLiked = reviewLikeRepository.existsByUserIdAndReviewId(user.getId(), review.getId());
+            response.put("isReviewLiked", isReviewLiked);
+
+            long reviewLikeCount = reviewLikeRepository.countByReviewId(review.getId());
+            response.put("reviewLikeCount", reviewLikeCount);
 
             return ResponseEntity.ok(response);
         } else {
@@ -272,6 +331,9 @@ public class ReviewController {
             } else {
                 response.put("isReviewLiked", false);
             }
+
+            long reviewLikeCount = reviewLikeRepository.countByReviewId(review.getId());
+            response.put("reviewLikeCount", reviewLikeCount);
 
             return ResponseEntity.ok(response);
         } else {

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from './Navbar';
-import { Star, Heart, Eye, Clock, Calendar, List, RefreshCw, Tag } from 'lucide-react';
+import { Star, Heart, Eye, Clock, Calendar, List, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import MoviePoster from './MoviePoster';
 import './UserMovieActivity.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -131,7 +132,9 @@ const UserMovieActivity = () => {
                 newActivity.push(activityItem);
                 setUserReview({
                     ...reviewData.review,
-                    isReviewLiked: reviewData.isReviewLiked || false
+                    isLiked: reviewData.isLiked || false,
+                    isReviewLiked: reviewData.isReviewLiked || false,
+                    reviewLikeCount: reviewData.reviewLikeCount || 0
                 });
             } else if (reviewData.hasReview) {
                 console.warn('Review data reported as existing but review object is missing:', reviewData);
@@ -209,7 +212,8 @@ const UserMovieActivity = () => {
           if (res.ok) {
               setUserReview(prev => ({
                   ...prev,
-                  isReviewLiked: !isLiked
+                  isReviewLiked: !isLiked,
+                  reviewLikeCount: isLiked ? Math.max(0, (prev.reviewLikeCount || 0) - 1) : (prev.reviewLikeCount || 0) + 1
               }));
           } else {
               console.error("Failed to toggle review like");
@@ -316,8 +320,8 @@ const UserMovieActivity = () => {
                                                 <div className="rating-stars-inline" style={{ marginLeft: '5px', display: 'inline-block' }}>
                                                     <Heart 
                                                         size={12} 
-                                                        fill="#FF8000" 
-                                                        color="#FF8000" 
+                                                        fill="#ff5c5c" 
+                                                        color="#ff5c5c" 
                                                         strokeWidth={0} 
                                                     />
                                                 </div>
@@ -350,11 +354,6 @@ const UserMovieActivity = () => {
                                 <div className="review-meta">
                                     <div className="review-author">Review by <span className="author-name">{displayName}</span></div>
                                     <div className="review-rating">
-                                        {(userReview.isRewatch || userReview.rewatch) && (
-                                            <div title="Rewatch" style={{ display: 'inline-flex', alignItems: 'center', marginRight: '6px', verticalAlign: 'middle' }}>
-                                                <RefreshCw size={16} color="#00e054" strokeWidth={2} />
-                                            </div>
-                                        )}
                                         {[1, 2, 3, 4, 5].map(star => (
                                             <div key={star} style={{ position: 'relative', display: 'inline-block', width: '16px', height: '16px', marginRight: '2px' }}>
                                                 <Star 
@@ -382,50 +381,19 @@ const UserMovieActivity = () => {
                                                 </div>
                                             </div>
                                         ))}
-                                        
-                                        {/* Like Review Heart */}
-                                        <div 
-                                            onClick={handleLikeReview}
-                                            style={{ 
-                                                display: 'inline-flex', 
-                                                alignItems: 'center', 
-                                                marginLeft: '8px', 
-                                                cursor: 'pointer',
-                                                verticalAlign: 'top',
-                                                height: '16px'
-                                            }}
-                                            title={userReview.isReviewLiked ? "Unlike review" : "Like review"}
-                                        >
-                                            <Heart 
-                                                size={16} 
-                                                color={userReview.isReviewLiked ? "#ff5c5c" : "#667788"} 
-                                                fill={userReview.isReviewLiked ? "#ff5c5c" : "none"}
-                                            />
-                                        </div>
-                                    </div>
-                                    {userReview.tags && userReview.tags.length > 0 && (
-                                        <div className="review-tags" style={{ display: 'flex', alignItems: 'center', marginTop: '6px', gap: '6px' }}>
-                                            <Tag size={14} color="#556677" />
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                                {userReview.tags.map((tag, idx) => (
-                                                    <span 
-                                                        key={idx} 
-                                                        style={{ 
-                                                            fontSize: '0.8rem', 
-                                                            color: '#99aabb', 
-                                                            cursor: 'pointer',
-                                                            transition: 'color 0.2s'
-                                                        }}
-                                                        onClick={() => navigate(`/search?tag=${encodeURIComponent(tag)}`)}
-                                                        onMouseOver={(e) => e.target.style.color = '#00e054'}
-                                                        onMouseOut={(e) => e.target.style.color = '#99aabb'}
-                                                    >
-                                                        {tag}
-                                                    </span>
-                                                ))}
+
+                                        {(userReview.isRewatch || userReview.rewatch) && (
+                                            <div title="Rewatch" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '6px', verticalAlign: 'middle' }}>
+                                                <RefreshCw size={16} color="#00e054" strokeWidth={2} />
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+
+                                        {userReview.isLiked && (
+                                            <div title="Liked Movie" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: '6px', verticalAlign: 'middle' }}>
+                                                <Heart size={16} color="#ff5c5c" fill="#ff5c5c" strokeWidth={0} />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             
@@ -449,14 +417,32 @@ const UserMovieActivity = () => {
                                     </>
                                 )}
                             </div>
-                            
-                            {userReview.tags && userReview.tags.length > 0 && (
-                                <div className="review-tags">
-                                    {userReview.tags.map((tag, i) => (
-                                        <span key={i} className="review-tag">{tag}</span>
-                                    ))}
+
+                            <div className="review-actions" style={{ marginTop: '16px', marginBottom: '8px' }}>
+                                <div 
+                                    onClick={handleLikeReview}
+                                    style={{ 
+                                        display: 'inline-flex', 
+                                        alignItems: 'center', 
+                                        gap: '6px', 
+                                        cursor: 'pointer',
+                                        color: '#99aabb',
+                                        fontSize: '0.9rem',
+                                        fontWeight: '500',
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    <Heart 
+                                        size={18} 
+                                        color={userReview.isReviewLiked ? "#FF8000" : "#667788"} 
+                                        fill={userReview.isReviewLiked ? "#FF8000" : "none"}
+                                    />
+                                    <span>Like review</span>
+                                    <span style={{ marginLeft: '2px' }}>{userReview.reviewLikeCount || 0}</span>
                                 </div>
-                            )}
+                            </div>
+                            
+                            {/* Tags section removed as per user request */}
 
                             <div className="review-date">
                                 Reviewed on {formatDate(userReview.createdAt)}
@@ -470,11 +456,13 @@ const UserMovieActivity = () => {
         </div>
 
         <div className="activity-sidebar">
-            <div className="poster-container" onClick={() => navigate(`/movie/${movie.id}`)}>
-                <img 
-                    src={`${IMAGE_BASE_URL}${movie.poster_path}`} 
-                    alt={movie.title} 
+            <div className="poster-container">
+                <MoviePoster 
+                    movie={movie}
+                    review={null} // Explicitly null to ensure we use the Viewer's like status (Movie Mode), not the Reviewer's status
+                    showTitleTooltip={false}
                     className="sidebar-poster"
+                    onClick={() => navigate(`/movie/${movie.id}`)}
                 />
             </div>
         </div>

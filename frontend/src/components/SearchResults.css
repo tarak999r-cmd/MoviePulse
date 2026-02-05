@@ -1,0 +1,11 @@
+/* SearchResults.css */
+.landing-container {
+  min-height: 100vh;
+  background-color: #0f172a;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
